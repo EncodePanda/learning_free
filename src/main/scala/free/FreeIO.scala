@@ -44,20 +44,28 @@ class Loggings[F[_]](implicit I : Inject[Logging, F]) {
 
 object Full extends App {
 
-  implicit class NTOps[F[_], G[_]](nt: F ~> G) {
-    def or[H[_]](ont: H ~> G):
-    ({type cp[P]=Coproduct[F,H,P]})#cp ~> G =
-      new (({type cp[P]=Coproduct[F,H,P]})#cp ~> G) {
-        def apply[A](fa: Coproduct[F, H, A]): G[A] =
-          fa.run.fold(nt(_), ont(_))
-      }
+
+  /*
+   :+: taken from Quasar Analytics
+   */
+  sealed abstract class :+:[F[_], G[_]] {
+    type λ[A] = Coproduct[F, G, A]
+  }
+
+  implicit class EnrichNT[F[_], H[_]](f: F ~> H) {
+    def :+:[G[_]](g: G ~> H): (G :+: F)#λ ~> H = new ((G :+: F)#λ ~> H) {
+      def apply[A](fa: (G :+: F)#λ[A]) = fa.run.fold(g, f)
+    }
   }
 
   type Appli[A] = Coproduct[IO, Logging, A]
 
-  def program(implicit I : IOs[Appli], L :  Loggings[Appli]): Free[Appli, String] = {
+  def program[S[_]](implicit s0: IO :<: S, s1: Logging :<: S): Free[S, String] = {
+    val I = new IOs[S]
+    val L = new Loggings[S]
 
-    import I._, L._
+    import I._
+    import L._
 
     for {
       _ <- info("Asking for first and last name")
@@ -69,17 +77,11 @@ object Full extends App {
       _ <- info(s"Recorded answer $first $last")
     } yield first + " " + last
   }
-
-  implicit val I : IOs[Appli] = new IOs[Appli]
-  implicit val L : Loggings[Appli] = new Loggings[Appli]
-
-  val interpret: Appli ~> Id = Main.consoleInterpeter or FreeLogging.consoleLogInterp
-  
-  program.foldMap(interpret)
-
-
-}
  
+  val interpret: Appli ~> Id = Main.consoleInterpeter :+: FreeLogging.consoleLogInterp
+  
+  program[Appli].foldMap(interpret)
+}
 
 object FreeLogging extends App {
 
@@ -104,12 +106,10 @@ object FreeLogging extends App {
 
 object FreeIO {
   import IO._
-  import scala.collection.mutable.ListBuffer
-  import scala.collection.mutable.Stack
 
-  val program1: DSL[Unit] = printLine("Hello World!")
+  val program1: Free[IO, Unit] = printLine("Hello World!")
 
-  val program2: DSL[String] = for {
+  val program2: Free[IO, String] = for {
     _ <- printLine("Tell me your first name")
     first <- getLine
     _ <- printLine("Tell me your last name")
