@@ -12,8 +12,8 @@ object IO {
 
   type DSL[A] = Free[IO, A]
 
-  def printLine(str: String): DSL[Unit] = Free.liftF(PrintLine(str))
-  def getLine: DSL[String] = Free.liftF(GetLine)
+  def printLine(str: String): Free[IO, Unit] = Free.liftF(PrintLine(str))
+  def getLine: Free[IO, String] = Free.liftF(GetLine)
 
 }
 
@@ -26,6 +26,60 @@ object Logging {
   def info(str: String): Free[Logging, Unit] = Free.liftF(Info(str))
   def error(str: String): Free[Logging, Unit] = Free.liftF(Error(str))
 }
+
+class IOs[F[_]](implicit I : Inject[IO, F]) {
+
+  def printLine(str: String): Free[F, Unit] = Free.liftF(I.inj(PrintLine(str)))
+  def getLine: Free[F, String] = Free.liftF(I.inj(GetLine))
+
+}
+
+class Loggings[F[_]](implicit I : Inject[Logging, F]) {
+
+  def info(str: String): Free[F, Unit] = Free.liftF(I.inj(Info(str)))
+  def error(str: String): Free[F, Unit] = Free.liftF(I.inj(Error(str)))
+
+}
+
+
+object Full extends App {
+
+  implicit class NTOps[F[_], G[_]](nt: F ~> G) {
+    def or[H[_]](ont: H ~> G):
+    ({type cp[P]=Coproduct[F,H,P]})#cp ~> G =
+      new (({type cp[P]=Coproduct[F,H,P]})#cp ~> G) {
+        def apply[A](fa: Coproduct[F, H, A]): G[A] =
+          fa.run.fold(nt(_), ont(_))
+      }
+  }
+
+  type Appli[A] = Coproduct[IO, Logging, A]
+
+  def program(implicit I : IOs[Appli], L :  Loggings[Appli]): Free[Appli, String] = {
+
+    import I._, L._
+
+    for {
+      _ <- info("Asking for first and last name")
+      _ <- printLine("Tell me your first name")
+      first <- getLine
+      _ <- printLine("Tell me your last name")
+      last <- getLine
+      _ <- printLine(s"Your name is $first $last")
+      _ <- info(s"Recorded answer $first $last")
+    } yield first + " " + last
+  }
+
+  implicit val I : IOs[Appli] = new IOs[Appli]
+  implicit val L : Loggings[Appli] = new Loggings[Appli]
+
+  val interpret: Appli ~> Id = Main.consoleInterpeter or FreeLogging.consoleLogInterp
+  
+  program.foldMap(interpret)
+
+
+}
+ 
 
 object FreeLogging extends App {
 
