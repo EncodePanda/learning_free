@@ -48,4 +48,32 @@ object Main extends App {
   program2.foldMap(consoleInterpeter)
 }
 
+object Tests extends App {
+  import FreeIO._
+
+  import scala.collection.mutable.ListBuffer
+  import scala.collection.mutable.Stack
+
+  def listInterpreter(input: Stack[String], output: ListBuffer[String]): IO ~> Id =
+    new (IO ~> Id) {
+      def apply[A](io: IO[A]): Id[A] = io match {
+        case PrintLine(str) =>
+          output += str
+          ()
+        case GetLine => input.pop
+      }
+    }
+
+  var input = new Stack[String]()
+  input.push("pawel")
+  input.push("szulc")
+  input = input.reverse
+  val output = new ListBuffer[String]()
+
+  program2.foldMap(listInterpreter(input, output))
+
+  if(output != ListBuffer("Tell me your first name", "Tell me your last name", "Your name is pawel szulc")) {
+    throw new RuntimeException(output.toString)
+  }
+}
 
