@@ -6,10 +6,10 @@ import Scalaz._
 
 object Full extends App {
 
-  type Appli[A] = Coproduct[IO, Logging, A]
+  type Eff[A] = Coproduct[IO, Logging, A]
 
   def program[S[_]](implicit s0: IO :<: S, s1: Logging :<: S): Free[S, String] = {
-    val I = new IOs[S]
+    val I = new IO.Ops[S]
     val L = new Loggings[S]
 
     import I._
@@ -26,9 +26,9 @@ object Full extends App {
     } yield first + " " + last
   }
  
-  val interpret: Appli ~> Id = IOConsoleInterpreter :+: LoggingConsoleInterpreter
+  val interpret: Eff ~> Id = IOConsoleInterpreter :+: LoggingConsoleInterpreter
   
-  program[Appli].foldMap(interpret)
+  program[Eff].foldMap(interpret)
 }
 
 
