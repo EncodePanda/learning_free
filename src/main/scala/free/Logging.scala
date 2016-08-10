@@ -7,15 +7,13 @@ trait Logging[A]
 case class Info(str: String) extends Logging[Unit]
 case class Error(str: String) extends Logging[Unit]
 
-object Logging {
-  def info(str: String): Free[Logging, Unit] = Free.liftF(Info(str))
-  def error(str: String): Free[Logging, Unit] = Free.liftF(Error(str))
+class LoggingFrees[F[_]](wrap: Logging ~> F) extends Services[Logging, F](wrap) {
+  def info(str: String): Free[F, Unit] = createFree(Info(str))
+  def error(str: String): Free[F, Unit] = createFree(Error(str))
 }
 
-class Loggings[F[_]](implicit I : Inject[Logging, F]) {
-  def info(str: String): Free[F, Unit] = Free.liftF(I.inj(Info(str)))
-  def error(str: String): Free[F, Unit] = Free.liftF(I.inj(Error(str)))
-}
+object Logging extends LoggingFrees[Logging](new NoWrap[Logging])
+class Loggings[F[_]](implicit I : Inject[Logging, F]) extends LoggingFrees[F](new InjectWrap[Logging, F])
 
 object LoggingConsoleInterpreter extends (Logging ~> Id) {
   def apply[A](log: Logging[A]): Id[A] = log match {

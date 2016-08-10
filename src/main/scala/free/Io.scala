@@ -7,18 +7,13 @@ trait IO[A]
 case class PrintLine(str: String) extends IO[Unit]
 object GetLine extends IO[String]
 
-object IO {
-  def printLine(str: String): Free[IO, Unit] = Free.liftF(PrintLine(str))
-  def getLine: Free[IO, String] = Free.liftF(GetLine)
+class IOFrees[F[_]](wrap: IO ~> F) extends Services[IO, F](wrap) {
+  def printLine(str: String): Free[F, Unit] = createFree(PrintLine(str))
+  def getLine: Free[F, String] = createFree(GetLine)
 }
 
-
-class IOs[F[_]](implicit I : Inject[IO, F]) {
-
-  def printLine(str: String): Free[F, Unit] = Free.liftF(I.inj(PrintLine(str)))
-  def getLine: Free[F, String] = Free.liftF(I.inj(GetLine))
-
-}
+object IO extends IOFrees[IO](new NoWrap[IO])
+class IOs[F[_]](implicit I : Inject[IO, F]) extends IOFrees[F](new InjectWrap[IO, F])
 
 object IOConsoleInterpreter extends (IO ~> Id) {
   def apply[A](io: IO[A]): Id[A] = io match {
