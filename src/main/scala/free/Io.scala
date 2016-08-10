@@ -11,8 +11,8 @@ object IO {
   object GetLine extends IO[String]
 
   class Ops[S[_]](implicit s0 : IO :<: S) {
-    def printLine(str: String): Sree[S, Unit] = Free.liftF(I.inj(PrintLine(str)))
-    def getLine: Free[S, String] = Free.liftF(I.inj(GetLine))
+    def printLine(str: String): Free[S, Unit] = Free.liftF(s0.inj(PrintLine(str)))
+    def getLine: Free[S, String] = Free.liftF(s0.inj(GetLine))
   }
 }
 
